@@ -177,6 +177,7 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 
 	if (bytesread != bodysize) {
 		printf("Fail reading file body.\n");
+		free(filebody);
 		return 0;
 	}
 
@@ -188,6 +189,7 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 
 	if (found_tclinux_checksum != crc32) {
 		printf("CRC32 on the header does not match with the calculated one.\n");
+		free(filebody);
 		return 0;
 	}
 
@@ -357,6 +359,7 @@ int main(int argc, const char *argv[])
 
 		if (bytesread != bodysize) {
 			printf("Fail reading file body.\n");
+			free(filebody);
 			return 1;
 		}
 
@@ -367,6 +370,7 @@ int main(int argc, const char *argv[])
 		kernelp = fopen(kernelfile, "wb");
 		if (kernelp == NULL) {
 			perror("Fail opening kernel file for writting:");
+			free(filebody);
 			return 1;
 		}
 
@@ -374,6 +378,8 @@ int main(int argc, const char *argv[])
 		rootfsp = fopen(rootfsfile, "wb");
 		if (rootfsp == NULL) {
 			perror("Fail opening rootfs file for writting:");
+			free(filebody);
+			fclose(kernelp);
 			return 1;
 		}
 
@@ -381,12 +387,18 @@ int main(int argc, const char *argv[])
 		byteswritten = fwrite(filebody, 1, swapendian(header.lenkernel), kernelp);
 		if (byteswritten != swapendian(header.lenkernel)) {
 			printf("Fail writting kernel file '%s'.\n", kernelfile);
+			free(filebody);
+			fclose(kernelp);
+			fclose(rootfsp);
 			return 1;
 		}
 
 		// Try writting rootfs file
 		byteswritten = fwrite(filebody + swapendian(header.lenkernel), 1, swapendian(header.lenrootfs), rootfsp);
 		if (byteswritten != swapendian(header.lenrootfs)) {
+			free(filebody);
+			fclose(kernelp);
+			fclose(rootfsp);
 			printf("Fail writting rootfs file '%s'.\n", kernelfile);
 			return 1;
 		}
@@ -403,12 +415,9 @@ int main(int argc, const char *argv[])
 
 	if (mode == CREATE) {
 		uint32_t crc;
-		int filesize = 0;
-		int bodysize = 0;
 		int kernelsize = 0;
 		int rootfssize = 0;
 		int bytesread = 0;
-		int byteswritten = 0;
 		char *filebody = NULL;
 		char *kerneldata = NULL;
 		char *rootfsdata = NULL;
@@ -429,6 +438,7 @@ int main(int argc, const char *argv[])
 		rootfsp = fopen(rootfsfile, "rb");
 		if (rootfsp == NULL) {
 			perror("Fail opening rootfs file for reading:");
+			fclose(kernelp);
 			return 1;
 		}
 
@@ -451,6 +461,11 @@ int main(int argc, const char *argv[])
 		bytesread = fread(kerneldata, 1, kernelsize, kernelp);
 		if (bytesread != kernelsize) {
 			printf("Fail reading kernel file.\n");
+			fclose(kernelp);
+			fclose(rootfsp);
+			free(filebody);
+			free(kerneldata);
+			free(rootfsdata);
 			return 1;
 		}
 
@@ -458,6 +473,11 @@ int main(int argc, const char *argv[])
 		bytesread = fread(rootfsdata, 1, rootfssize, rootfsp);
 		if (bytesread != rootfssize) {
 			printf("Fail reading rootfs file.\n");
+			fclose(kernelp);
+			fclose(rootfsp);
+			free(filebody);
+			free(kerneldata);
+			free(rootfsdata);
 			return 1;
 		}
 
