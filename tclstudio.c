@@ -251,7 +251,7 @@ int main(int argc, const char *argv[])
 
 			if (strlen(version) > 32) {
 				printf("Version string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
 			continue;
@@ -261,7 +261,7 @@ int main(int argc, const char *argv[])
 
 			if (strlen(versioncustom) > 32) {
 				printf("Version custom string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
 			continue;
@@ -271,7 +271,7 @@ int main(int argc, const char *argv[])
 
 			if (strlen(devicemodel) > 32) {
 				printf("Device model string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
 			continue;
@@ -293,6 +293,7 @@ int main(int argc, const char *argv[])
 			return 1;
 		}
 
+		int retcode = 0;
 		if (checktcl(fp, &header) == 1) {
 			printf("All checks OK!\n");
 			printf("header.version: %s\n", header.version);
@@ -306,9 +307,11 @@ int main(int argc, const char *argv[])
 			printf("header.lenrootfs: %d\n", swapendian(header.lenrootfs));
 		} else {
 			printf("Some checks FAIL!\n");
+			retcode = 1;
 		}
 
 		fclose(fp);
+		return retcode;
 	}
 
 	if (mode == EXTRACT) {
