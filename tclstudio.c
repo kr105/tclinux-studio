@@ -279,7 +279,15 @@ int main(int argc, const char *argv[])
 	}
 
 	if (mode == HELP) {
-		printf("Usage: %s [ Sorry but help info is not available yet ]\n", argv[0]);
+		printf("Usage: %s <args>\n"
+			"-t (--test)     Test file integrity (-t input.bin)\n"
+			"-e (--extract)  Extract kernel and rootfs (-e input.bin kernel.bin rootfs.bin)\n"
+			"-c (--create)   Create tclinux image (-c output.bin -k kernel.bin -r rootfs.bin)\n"
+			"Options for create:\n"
+			"-da (--decompress-addr)    RAM address for kernel to place on\n"
+			"-v  (--version)            Version string for firmware (32 chars)\n"
+			"-vc (--version-custom)     Version (customized) string for firmware (32 chars)\n"
+			"-dm (--device-model)       Device model (32 chars)\n", argv[0]);
 		return 2;
 	}
 
