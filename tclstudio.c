@@ -280,7 +280,7 @@ int main(int argc, const char *argv[])
 
 	if (mode == HELP) {
 		printf("Usage: %s [ Sorry but help info is not available yet ]\n", argv[0]);
-		return 0;
+		return 2;
 	}
 
 	if (mode == TEST) {
@@ -290,7 +290,7 @@ int main(int argc, const char *argv[])
 
 		if (fp == NULL) {
 			perror("Fail opening input file:");
-			return 0;
+			return 1;
 		}
 
 		if (checktcl(fp, &header) == 1) {
@@ -305,7 +305,7 @@ int main(int argc, const char *argv[])
 			printf("header.lenkernel: %d\n", swapendian(header.lenkernel));
 			printf("header.lenrootfs: %d\n", swapendian(header.lenrootfs));
 		} else {
-			//
+			printf("Some checks FAIL!\n");
 		}
 
 		fclose(fp);
@@ -323,11 +323,11 @@ int main(int argc, const char *argv[])
 
 		if (fp == NULL) {
 			printf("Fail opening file.\n");
-			return 0;
+			return 1;
 		}
 
 		if (checktcl(fp, &header) == 0) {
-			return 0;
+			return 1;
 		}
 
 		// Get file size
@@ -346,7 +346,7 @@ int main(int argc, const char *argv[])
 
 		if (bytesread != bodysize) {
 			printf("Fail reading file body.\n");
-			return 0;
+			return 1;
 		}
 
 		FILE *kernelp = NULL;
@@ -356,28 +356,28 @@ int main(int argc, const char *argv[])
 		kernelp = fopen(kernelfile, "wb");
 		if (kernelp == NULL) {
 			perror("Fail opening kernel file for writting:");
-			return 0;
+			return 1;
 		}
 
 		// Try opening rootfs file
 		rootfsp = fopen(rootfsfile, "wb");
 		if (rootfsp == NULL) {
 			perror("Fail opening rootfs file for writting:");
-			return 0;
+			return 1;
 		}
 
 		// Try writting kernel file
 		byteswritten = fwrite(filebody, 1, swapendian(header.lenkernel), kernelp);
 		if (byteswritten != swapendian(header.lenkernel)) {
 			printf("Fail writting kernel file '%s'.\n", kernelfile);
-			return 0;
+			return 1;
 		}
 
 		// Try writting rootfs file
 		byteswritten = fwrite(filebody + swapendian(header.lenkernel), 1, swapendian(header.lenrootfs), rootfsp);
 		if (byteswritten != swapendian(header.lenrootfs)) {
 			printf("Fail writting rootfs file '%s'.\n", kernelfile);
-			return 0;
+			return 1;
 		}
 
 		// Cleanup
@@ -411,14 +411,14 @@ int main(int argc, const char *argv[])
 		kernelp = fopen(kernelfile, "rb");
 		if (kernelp == NULL) {
 			perror("Fail opening kernel file for reading:");
-			return 0;
+			return 1;
 		}
 
 		// Try opening rootfs file
 		rootfsp = fopen(rootfsfile, "rb");
 		if (rootfsp == NULL) {
 			perror("Fail opening rootfs file for reading:");
-			return 0;
+			return 1;
 		}
 
 		// Find kernel file size
@@ -440,14 +440,14 @@ int main(int argc, const char *argv[])
 		bytesread = fread(kerneldata, 1, kernelsize, kernelp);
 		if (bytesread != kernelsize) {
 			printf("Fail reading kernel file.\n");
-			return 0;
+			return 1;
 		}
 
 		// Try reading rootfs file
 		bytesread = fread(rootfsdata, 1, rootfssize, rootfsp);
 		if (bytesread != rootfssize) {
 			printf("Fail reading rootfs file.\n");
-			return 0;
+			return 1;
 		}
 
 		memcpy(filebody, kerneldata, kernelsize);
