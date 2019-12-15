@@ -199,6 +199,7 @@ int main(int argc, const char *argv[])
 	const char *version = NULL;
 	const char *versioncustom = NULL;
 	const char *devicemodel = NULL;
+	uint32_t magic = 0;
 	uint32_t kerneldecompressaddr = 0;
 
 	for (int i = 1; i < argc; i++) {
@@ -265,6 +266,10 @@ int main(int argc, const char *argv[])
 
 			continue;
 		}
+		else if (strcmp(argv[i], "-ma") == 0 || strcmp(argv[i], "--magic") == 0) {
+			magic = (uint32_t)strtoll(argv[++i], NULL, 16);
+			continue;
+		}
 	}
 
 	if (mode == HELP) {
@@ -273,10 +278,11 @@ int main(int argc, const char *argv[])
 			"-e (--extract)  Extract kernel and rootfs (-e input.bin kernel.bin rootfs.bin)\n"
 			"-c (--create)   Create tclinux image (-c output.bin -k kernel.bin -r rootfs.bin)\n"
 			"Options for create:\n"
-			"-da (--decompress-addr)    RAM address for kernel to place on\n"
+			"-da (--decompress-addr)    RAM address (hex, 32-bit) for kernel to place on\n"
 			"-v  (--version)            Version string for firmware (32 chars)\n"
 			"-vc (--version-custom)     Version (customized) string for firmware (32 chars)\n"
-			"-dm (--device-model)       Device model (32 chars)\n", argv[0]);
+			"-dm (--device-model)       Device model (32 chars)\n"
+			"-ma (--magic)              Header magic (hex, 32 bit)\n", argv[0]);
 		return 2;
 	}
 
@@ -293,6 +299,7 @@ int main(int argc, const char *argv[])
 		int retcode = 0;
 		if (checktcl(fp, &header) == 1) {
 			printf("All checks OK!\n");
+			printf("header.magic: 0x%08X\n", header.magic);
 			printf("header.version: %s\n", header.version);
 			printf("header.versioncustom: %s\n", header.versioncustom);
 			printf("header.devicemodel: %s\n", header.devicemodel);
@@ -473,8 +480,13 @@ int main(int argc, const char *argv[])
 
 		// Init the header
 		memset(&header, 0x00, TCL_HEADER_SIZE);
-		header.magic = htonl(TCL_MAGIC);
-		
+
+		if (magic) {
+		    header.magic = htonl(magic);
+		} else {
+		    header.magic = htonl(TCL_MAGIC);
+		}
+
 		// Calculate CRC32 of the file
 		crc = crc32buf(filebody, kernelsize + rootfssize);
 		header.crc32 = htonl(crc);
