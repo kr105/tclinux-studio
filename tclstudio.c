@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 
 #define TCL_MAGIC 0x32524448
 #define TCL_HEADER_SIZE 0x100
@@ -45,21 +46,6 @@ struct tcl_header {
 	uint32_t decompressaddr;		// Decompress address for kernel
 	uint32_t reserved[32];			// ?
 };
-
-uint32_t swapendian(uint32_t num)
-{
-	uint32_t b0, b1, b2, b3;
-	uint32_t res;
-
-	b0 = (num & 0x000000ff) << 24u;
-	b1 = (num & 0x0000ff00) << 8u;
-	b2 = (num & 0x00ff0000) >> 8u;
-	b3 = (num & 0xff000000) >> 24u;
-
-	res = b0 | b1 | b2 | b3;
-
-	return res;
-}
 
 // ========================================================================
 
@@ -158,13 +144,13 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 	}
 
 	// Check filesize in header with actual filesize
-	if (swapendian(header.lenfile) != filesize) {
+	if (ntohl(header.lenfile) != filesize) {
 		printf("Header file size doesn't match with the actual file size.\n");
 		return 0;
 	}
 
 	// Check if sum of all sizes in header match the actual filesize
-	if ((swapendian(header.lenkernel) + swapendian(header.lenheader) + swapendian(header.lenrootfs)) != filesize) {
+	if ((ntohl(header.lenkernel) + ntohl(header.lenheader) + ntohl(header.lenrootfs)) != filesize) {
 		printf("Header file size sums doesn't match with the actual file size.\n");
 		return 0;
 	}
@@ -183,7 +169,7 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 	}
 
 	// Read CRC32 and convert endianness 
-	uint32_t found_tclinux_checksum = swapendian(header.crc32);
+	uint32_t found_tclinux_checksum = ntohl(header.crc32);
 
 	// Calculate CRC32 from what we have read from the file
 	crc32 = crc32buf(filebody, bodysize);
@@ -310,12 +296,12 @@ int main(int argc, const char *argv[])
 			printf("header.version: %s\n", header.version);
 			printf("header.versioncustom: %s\n", header.versioncustom);
 			printf("header.devicemodel: %s\n", header.devicemodel);
-			printf("header.crc32: 0x%08X\n", swapendian(header.crc32));
-			printf("header.decompressaddr: 0x%08X\n", swapendian(header.decompressaddr));
-			printf("header.lenfile: %d\n", swapendian(header.lenfile));
-			printf("header.lenheader: %d\n", swapendian(header.lenheader));
-			printf("header.lenkernel: %d\n", swapendian(header.lenkernel));
-			printf("header.lenrootfs: %d\n", swapendian(header.lenrootfs));
+			printf("header.crc32: 0x%08X\n", ntohl(header.crc32));
+			printf("header.decompressaddr: 0x%08X\n", ntohl(header.decompressaddr));
+			printf("header.lenfile: %d\n", ntohl(header.lenfile));
+			printf("header.lenheader: %d\n", ntohl(header.lenheader));
+			printf("header.lenkernel: %d\n", ntohl(header.lenkernel));
+			printf("header.lenrootfs: %d\n", ntohl(header.lenrootfs));
 		} else {
 			printf("Some checks FAIL!\n");
 			retcode = 1;
@@ -385,8 +371,8 @@ int main(int argc, const char *argv[])
 		}
 
 		// Try writting kernel file
-		byteswritten = fwrite(filebody, 1, swapendian(header.lenkernel), kernelp);
-		if (byteswritten != swapendian(header.lenkernel)) {
+		byteswritten = fwrite(filebody, 1, ntohl(header.lenkernel), kernelp);
+		if (byteswritten != ntohl(header.lenkernel)) {
 			printf("Fail writting kernel file '%s'.\n", kernelfile);
 			free(filebody);
 			fclose(kernelp);
@@ -395,8 +381,8 @@ int main(int argc, const char *argv[])
 		}
 
 		// Try writting rootfs file
-		byteswritten = fwrite(filebody + swapendian(header.lenkernel), 1, swapendian(header.lenrootfs), rootfsp);
-		if (byteswritten != swapendian(header.lenrootfs)) {
+		byteswritten = fwrite(filebody + ntohl(header.lenkernel), 1, ntohl(header.lenrootfs), rootfsp);
+		if (byteswritten != ntohl(header.lenrootfs)) {
 			free(filebody);
 			fclose(kernelp);
 			fclose(rootfsp);
@@ -487,11 +473,11 @@ int main(int argc, const char *argv[])
 
 		// Init the header
 		memset(&header, 0x00, TCL_HEADER_SIZE);
-		header.magic = swapendian(TCL_MAGIC);
+		header.magic = htonl(TCL_MAGIC);
 		
 		// Calculate CRC32 of the file
 		crc = crc32buf(filebody, kernelsize + rootfssize);
-		header.crc32 = swapendian(crc);
+		header.crc32 = htonl(crc);
 
 		// Copy strings to header
 		memcpy(header.version, version, strlen(version));
@@ -502,12 +488,12 @@ int main(int argc, const char *argv[])
 			memcpy(header.versioncustom, versioncustom, strlen(versioncustom));
 
 		// Fill lenght fields
-		header.lenkernel = swapendian(kernelsize);
-		header.lenrootfs = swapendian(rootfssize);
-		header.lenheader = swapendian(TCL_HEADER_SIZE);
-		header.lenfile = swapendian(TCL_HEADER_SIZE + kernelsize + rootfssize);
+		header.lenkernel = htonl(kernelsize);
+		header.lenrootfs = htonl(rootfssize);
+		header.lenheader = htonl(TCL_HEADER_SIZE);
+		header.lenfile = htonl(TCL_HEADER_SIZE + kernelsize + rootfssize);
 
-		header.decompressaddr = swapendian(kerneldecompressaddr);
+		header.decompressaddr = htonl(kerneldecompressaddr);
 
 		outfile = fopen(openfile, "wb");
 
