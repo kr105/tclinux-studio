@@ -3,8 +3,8 @@ SOURCE	= tclstudio.c
 HEADER	= 
 OUT	= tclstudio
 CC	 = gcc
-FLAGS	 = -g -c -Wall
-LFLAGS	 = 
+FLAGS	 = -g -c -Wall -O2
+LFLAGS	 = -s
 
 all: $(OBJS)
 	$(CC) -g $(OBJS) -o $(OUT) $(LFLAGS)

@@ -1,5 +1,6 @@
 //
 // Copyright (c) 2019 Carlos Pizarro <kr105@kr105.com>
+// Copyright (c) 2019 [anp/hsw] <sysop@880.ru>
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
@@ -24,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 
 #define TCL_MAGIC 0x32524448
 #define TCL_HEADER_SIZE 0x100
@@ -44,21 +46,6 @@ struct tcl_header {
 	uint32_t decompressaddr;		// Decompress address for kernel
 	uint32_t reserved[32];			// ?
 };
-
-uint32_t swapendian(uint32_t num)
-{
-	uint32_t b0, b1, b2, b3;
-	uint32_t res;
-
-	b0 = (num & 0x000000ff) << 24u;
-	b1 = (num & 0x0000ff00) << 8u;
-	b2 = (num & 0x00ff0000) >> 8u;
-	b3 = (num & 0xff000000) >> 24u;
-
-	res = b0 | b1 | b2 | b3;
-
-	return res;
-}
 
 // ========================================================================
 
@@ -144,7 +131,7 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 	rewind(tclfile);
 
 	if (filesize < TCL_HEADER_SIZE) {
-		printf("File size too small.");
+		printf("File size too small.\n");
 		return 0;
 	}
 
@@ -152,19 +139,19 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 	readsize = fread((void *)&header, 1, TCL_HEADER_SIZE, tclfile);
 
 	if (readsize != TCL_HEADER_SIZE) {
-		printf("Fail reading file header.");
+		printf("Fail reading file header.\n");
 		return 0;
 	}
 
 	// Check filesize in header with actual filesize
-	if (swapendian(header.lenfile) != filesize) {
-		printf("Header file size doesn't match with the actual file size.");
+	if (ntohl(header.lenfile) != filesize) {
+		printf("Header file size doesn't match with the actual file size.\n");
 		return 0;
 	}
 
 	// Check if sum of all sizes in header match the actual filesize
-	if ((swapendian(header.lenkernel) + swapendian(header.lenheader) + swapendian(header.lenrootfs)) != filesize) {
-		printf("Header file size sums doesn't match with the actual file size.");
+	if ((ntohl(header.lenkernel) + ntohl(header.lenheader) + ntohl(header.lenrootfs)) != filesize) {
+		printf("Header file size sums doesn't match with the actual file size.\n");
 		return 0;
 	}
 
@@ -176,18 +163,20 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 	bytesread = fread(filebody, 1, bodysize, tclfile);
 
 	if (bytesread != bodysize) {
-		printf("Fail reading file body.");
+		printf("Fail reading file body.\n");
+		free(filebody);
 		return 0;
 	}
 
 	// Read CRC32 and convert endianness 
-	uint32_t found_tclinux_checksum = swapendian(header.crc32);
+	uint32_t found_tclinux_checksum = ntohl(header.crc32);
 
 	// Calculate CRC32 from what we have read from the file
 	crc32 = crc32buf(filebody, bodysize);
 
 	if (found_tclinux_checksum != crc32) {
-		printf("CRC32 on the header does not match with the calculated one.");
+		printf("CRC32 on the header does not match with the calculated one.\n");
+		free(filebody);
 		return 0;
 	}
 
@@ -210,6 +199,7 @@ int main(int argc, const char *argv[])
 	const char *version = NULL;
 	const char *versioncustom = NULL;
 	const char *devicemodel = NULL;
+	uint32_t magic = 0;
 	uint32_t kerneldecompressaddr = 0;
 
 	for (int i = 1; i < argc; i++) {
@@ -251,7 +241,7 @@ int main(int argc, const char *argv[])
 
 			if (strlen(version) > 32) {
 				printf("Version string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
 			continue;
@@ -261,7 +251,7 @@ int main(int argc, const char *argv[])
 
 			if (strlen(versioncustom) > 32) {
 				printf("Version custom string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
 			continue;
@@ -271,16 +261,29 @@ int main(int argc, const char *argv[])
 
 			if (strlen(devicemodel) > 32) {
 				printf("Device model string can't be longer than 32 characters.");
-				return 0;
+				return 2;
 			}
 
+			continue;
+		}
+		else if (strcmp(argv[i], "-ma") == 0 || strcmp(argv[i], "--magic") == 0) {
+			magic = (uint32_t)strtoll(argv[++i], NULL, 16);
 			continue;
 		}
 	}
 
 	if (mode == HELP) {
-		printf("Usage: %s [ Sorry but help info is not available yet ]\n", argv[0]);
-		return 0;
+		printf("Usage: %s <args>\n"
+			"-t (--test)     Test file integrity (-t input.bin)\n"
+			"-e (--extract)  Extract kernel and rootfs (-e input.bin kernel.bin rootfs.bin)\n"
+			"-c (--create)   Create tclinux image (-c output.bin -k kernel.bin -r rootfs.bin)\n"
+			"Options for create:\n"
+			"-da (--decompress-addr)    RAM address (hex, 32-bit) for kernel to place on\n"
+			"-v  (--version)            Version string for firmware (32 chars)\n"
+			"-vc (--version-custom)     Version (customized) string for firmware (32 chars)\n"
+			"-dm (--device-model)       Device model (32 chars)\n"
+			"-ma (--magic)              Header magic (hex, 32 bit)\n", argv[0]);
+		return 2;
 	}
 
 	if (mode == TEST) {
@@ -289,26 +292,30 @@ int main(int argc, const char *argv[])
 		fp = fopen(openfile, "rb");
 
 		if (fp == NULL) {
-			printf("Fail opening file.");
-			return 0;
+			perror("Fail opening input file:");
+			return 1;
 		}
 
+		int retcode = 0;
 		if (checktcl(fp, &header) == 1) {
 			printf("All checks OK!\n");
+			printf("header.magic: 0x%08X\n", header.magic);
 			printf("header.version: %s\n", header.version);
 			printf("header.versioncustom: %s\n", header.versioncustom);
 			printf("header.devicemodel: %s\n", header.devicemodel);
-			printf("header.crc32: 0x%08X\n", swapendian(header.crc32));
-			printf("header.decompressaddr: 0x%08X\n", swapendian(header.decompressaddr));
-			printf("header.lenfile: %d\n", swapendian(header.lenfile));
-			printf("header.lenheader: %d\n", swapendian(header.lenheader));
-			printf("header.lenkernel: %d\n", swapendian(header.lenkernel));
-			printf("header.lenrootfs: %d\n", swapendian(header.lenrootfs));
+			printf("header.crc32: 0x%08X\n", ntohl(header.crc32));
+			printf("header.decompressaddr: 0x%08X\n", ntohl(header.decompressaddr));
+			printf("header.lenfile: %d\n", ntohl(header.lenfile));
+			printf("header.lenheader: %d\n", ntohl(header.lenheader));
+			printf("header.lenkernel: %d\n", ntohl(header.lenkernel));
+			printf("header.lenrootfs: %d\n", ntohl(header.lenrootfs));
 		} else {
-			//
+			printf("Some checks FAIL!\n");
+			retcode = 1;
 		}
 
 		fclose(fp);
+		return retcode;
 	}
 
 	if (mode == EXTRACT) {
@@ -322,12 +329,12 @@ int main(int argc, const char *argv[])
 		fp = fopen(openfile, "rb");
 
 		if (fp == NULL) {
-			printf("Fail opening file.");
-			return 0;
+			printf("Fail opening file.\n");
+			return 1;
 		}
 
 		if (checktcl(fp, &header) == 0) {
-			return 0;
+			return 1;
 		}
 
 		// Get file size
@@ -345,8 +352,9 @@ int main(int argc, const char *argv[])
 		bytesread = fread(filebody, 1, bodysize, fp);
 
 		if (bytesread != bodysize) {
-			printf("Fail reading file body.");
-			return 0;
+			printf("Fail reading file body.\n");
+			free(filebody);
+			return 1;
 		}
 
 		FILE *kernelp = NULL;
@@ -355,29 +363,38 @@ int main(int argc, const char *argv[])
 		// Try opening kernel file
 		kernelp = fopen(kernelfile, "wb");
 		if (kernelp == NULL) {
-			printf("Fail opening kernel file '%s' for writting.", kernelfile);
-			return 0;
+			perror("Fail opening kernel file for writting:");
+			free(filebody);
+			return 1;
 		}
 
 		// Try opening rootfs file
 		rootfsp = fopen(rootfsfile, "wb");
 		if (rootfsp == NULL) {
-			printf("Fail opening rootfs file '%s' for writting.", kernelfile);
-			return 0;
+			perror("Fail opening rootfs file for writting:");
+			free(filebody);
+			fclose(kernelp);
+			return 1;
 		}
 
 		// Try writting kernel file
-		byteswritten = fwrite(filebody, 1, swapendian(header.lenkernel), kernelp);
-		if (byteswritten != swapendian(header.lenkernel)) {
-			printf("Fail writting kernel file '%s'.", kernelfile);
-			return 0;
+		byteswritten = fwrite(filebody, 1, ntohl(header.lenkernel), kernelp);
+		if (byteswritten != ntohl(header.lenkernel)) {
+			printf("Fail writting kernel file '%s'.\n", kernelfile);
+			free(filebody);
+			fclose(kernelp);
+			fclose(rootfsp);
+			return 1;
 		}
 
 		// Try writting rootfs file
-		byteswritten = fwrite(filebody + swapendian(header.lenkernel), 1, swapendian(header.lenrootfs), rootfsp);
-		if (byteswritten != swapendian(header.lenrootfs)) {
-			printf("Fail writting rootfs file '%s'.", kernelfile);
-			return 0;
+		byteswritten = fwrite(filebody + ntohl(header.lenkernel), 1, ntohl(header.lenrootfs), rootfsp);
+		if (byteswritten != ntohl(header.lenrootfs)) {
+			free(filebody);
+			fclose(kernelp);
+			fclose(rootfsp);
+			printf("Fail writting rootfs file '%s'.\n", kernelfile);
+			return 1;
 		}
 
 		// Cleanup
@@ -386,18 +403,15 @@ int main(int argc, const char *argv[])
 		fclose(kernelp);
 		fclose(rootfsp);
 
-		printf("File '%s' extracted sucessfully.", openfile);
+		printf("File '%s' extracted sucessfully.\n", openfile);
 		return 0;
 	}
 
 	if (mode == CREATE) {
 		uint32_t crc;
-		int filesize = 0;
-		int bodysize = 0;
 		int kernelsize = 0;
 		int rootfssize = 0;
 		int bytesread = 0;
-		int byteswritten = 0;
 		char *filebody = NULL;
 		char *kerneldata = NULL;
 		char *rootfsdata = NULL;
@@ -410,15 +424,16 @@ int main(int argc, const char *argv[])
 		// Try opening kernel file
 		kernelp = fopen(kernelfile, "rb");
 		if (kernelp == NULL) {
-			printf("Fail opening kernel file '%s' for reading.", kernelfile);
-			return 0;
+			perror("Fail opening kernel file for reading:");
+			return 1;
 		}
 
 		// Try opening rootfs file
 		rootfsp = fopen(rootfsfile, "rb");
 		if (rootfsp == NULL) {
-			printf("Fail opening rootfs file '%s' for reading.", kernelfile);
-			return 0;
+			perror("Fail opening rootfs file for reading:");
+			fclose(kernelp);
+			return 1;
 		}
 
 		// Find kernel file size
@@ -439,15 +454,25 @@ int main(int argc, const char *argv[])
 		// Try reading kernel file
 		bytesread = fread(kerneldata, 1, kernelsize, kernelp);
 		if (bytesread != kernelsize) {
-			printf("Fail reading kernel file.");
-			return 0;
+			printf("Fail reading kernel file.\n");
+			fclose(kernelp);
+			fclose(rootfsp);
+			free(filebody);
+			free(kerneldata);
+			free(rootfsdata);
+			return 1;
 		}
 
 		// Try reading rootfs file
 		bytesread = fread(rootfsdata, 1, rootfssize, rootfsp);
 		if (bytesread != rootfssize) {
-			printf("Fail reading rootfs file.");
-			return 0;
+			printf("Fail reading rootfs file.\n");
+			fclose(kernelp);
+			fclose(rootfsp);
+			free(filebody);
+			free(kerneldata);
+			free(rootfsdata);
+			return 1;
 		}
 
 		memcpy(filebody, kerneldata, kernelsize);
@@ -455,11 +480,16 @@ int main(int argc, const char *argv[])
 
 		// Init the header
 		memset(&header, 0x00, TCL_HEADER_SIZE);
-		header.magic = swapendian(TCL_MAGIC);
-		
+
+		if (magic) {
+		    header.magic = htonl(magic);
+		} else {
+		    header.magic = htonl(TCL_MAGIC);
+		}
+
 		// Calculate CRC32 of the file
 		crc = crc32buf(filebody, kernelsize + rootfssize);
-		header.crc32 = swapendian(crc);
+		header.crc32 = htonl(crc);
 
 		// Copy strings to header
 		memcpy(header.version, version, strlen(version));
@@ -470,12 +500,12 @@ int main(int argc, const char *argv[])
 			memcpy(header.versioncustom, versioncustom, strlen(versioncustom));
 
 		// Fill lenght fields
-		header.lenkernel = swapendian(kernelsize);
-		header.lenrootfs = swapendian(rootfssize);
-		header.lenheader = swapendian(TCL_HEADER_SIZE);
-		header.lenfile = swapendian(TCL_HEADER_SIZE + kernelsize + rootfssize);
+		header.lenkernel = htonl(kernelsize);
+		header.lenrootfs = htonl(rootfssize);
+		header.lenheader = htonl(TCL_HEADER_SIZE);
+		header.lenfile = htonl(TCL_HEADER_SIZE + kernelsize + rootfssize);
 
-		header.decompressaddr = swapendian(kerneldecompressaddr);
+		header.decompressaddr = htonl(kerneldecompressaddr);
 
 		outfile = fopen(openfile, "wb");
 
@@ -492,7 +522,7 @@ int main(int argc, const char *argv[])
 		fclose(kernelp);
 		fclose(rootfsp);
 
-		printf("File '%s' built succesfully.", openfile);
+		printf("File '%s' built succesfully.\n", openfile);
 		return 0;
 	}
 }
