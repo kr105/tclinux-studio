@@ -308,7 +308,7 @@ int main(int argc, const char *argv[])
 		int retcode = 0;
 		if (checktcl(fp, &header) == 1) {
 			printf("All checks OK!\n");
-			printf("header.magic: 0x%08X\n", header.magic);
+			printf("header.magic: 0x%08X\n", ntohl(header.magic));
 			printf("header.version: %s\n", header.version);
 			printf("header.versioncustom: %s\n", header.versioncustom);
 			printf("header.devicemodel: %s\n", header.devicemodel);
