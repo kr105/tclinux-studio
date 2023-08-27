@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019 Carlos Pizarro <kr105@kr105.com>
+// Copyright (c) 2019-2023 Carlos Pizarro <kr105@kr105.com>
 // Copyright (c) 2019 [anp/hsw] <sysop@880.ru>
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,7 +25,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <Winsock2.h>
+#else
 #include <arpa/inet.h>
+#endif
 
 #define TCL_MAGIC 0x32524448
 #define TCL_HEADER_SIZE 0x100
