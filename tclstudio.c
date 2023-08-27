@@ -122,10 +122,10 @@ uint32_t crc32buf(char *buf, size_t len)
 int checktcl(FILE* tclfile, struct tcl_header *headerout)
 {
 	char *filebody = NULL;
-	int filesize = 0;
-	int bodysize = 0;
-	int readsize = 0;
-	int bytesread = 0;
+	size_t filesize = 0;
+	size_t bodysize = 0;
+	size_t readsize = 0;
+	size_t bytesread = 0;
 	struct tcl_header header;
 	uint32_t crc32 = 0;
 
@@ -328,10 +328,10 @@ int main(int argc, const char *argv[])
 	}
 
 	if (mode == EXTRACT) {
-		int filesize = 0;
-		int bodysize = 0;
-		int bytesread = 0;
-		int byteswritten = 0;
+		size_t filesize = 0;
+		size_t bodysize = 0;
+		size_t bytesread = 0;
+		size_t byteswritten = 0;
 		char *filebody = NULL;
 		struct tcl_header header;
 
@@ -425,7 +425,7 @@ int main(int argc, const char *argv[])
 		uint32_t crc;
 		int kernelsize = 0;
 		int rootfssize = 0;
-		int bytesread = 0;
+		size_t bytesread = 0;
 		char *filebody = NULL;
 		char *kerneldata = NULL;
 		char *rootfsdata = NULL;
