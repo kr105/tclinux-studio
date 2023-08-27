@@ -163,6 +163,11 @@ int checktcl(FILE* tclfile, struct tcl_header *headerout)
 
 	// Read file body
 	filebody = (char*)malloc(bodysize);
+	if (filebody == NULL) {
+		printf("Can't allocate memory.\n");
+		return 0;
+	}
+
 	memset((char*)filebody, 0x00, bodysize);
 	bytesread = fread(filebody, 1, bodysize, tclfile);
 
@@ -352,6 +357,11 @@ int main(int argc, const char *argv[])
 
 		// Read body (we already have header by the checktcl call above)
 		filebody = (char*)malloc(bodysize);
+		if (filebody == NULL) {
+			printf("Can't allocate memory.\n");
+			return 0;
+		}
+
 		memset((char*)filebody, 0x00, bodysize);
 		bytesread = fread(filebody, 1, bodysize, fp);
 
@@ -452,8 +462,25 @@ int main(int argc, const char *argv[])
 
 		// Alloc buffers
 		kerneldata = (char*)malloc(kernelsize);
+		if (kerneldata == NULL) {
+			printf("Can't allocate memory.\n");
+			return 0;
+		}
+
 		rootfsdata = (char*)malloc(rootfssize);
+		if (rootfsdata == NULL) {
+			printf("Can't allocate memory.\n");
+			free(kerneldata);
+			return 0;
+		}
+
 		filebody = (char*)malloc(kernelsize + rootfssize);
+		if (filebody == NULL) {
+			printf("Can't allocate memory.\n");
+			free(kerneldata);
+			free(rootfsdata);
+			return 0;
+		}
 
 		// Try reading kernel file
 		bytesread = fread(kerneldata, 1, kernelsize, kernelp);
