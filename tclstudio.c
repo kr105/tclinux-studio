@@ -435,6 +435,16 @@ int main(int argc, const char *argv[])
 		FILE *rootfsp = NULL;
 		FILE *outfile = NULL;
 
+		if (kernelfile == NULL) {
+			printf("kernel file parameter not specified!");
+			return 1;
+		}
+
+		if (rootfsfile == NULL) {
+			printf("kernel file parameter not specified!");
+			return 1;
+		}
+
 		// Try opening kernel file
 		kernelp = fopen(kernelfile, "rb");
 		if (kernelp == NULL) {
